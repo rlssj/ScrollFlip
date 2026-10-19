@@ -1,0 +1,32 @@
+{
+  "fill" : "automatic",
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "image-name-specializations" : [
+            {
+              "value" : "scrollflip-claro.png"
+            },
+            {
+              "appearance" : "dark",
+              "value" : "scrollflip-oscuro.png"
+            }
+          ],
+          "name" : "scrollflip"
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : false,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "squares" : "shared"
+  }
+}

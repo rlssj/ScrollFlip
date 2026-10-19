@@ -1,0 +1,6 @@
+ScrollFlip
+Copyright 2026 rlssj
+
+The scroll reversing and the interface are based on Scroll Reverser
+<https://github.com/pilotmoon/Scroll-Reverser>, by Nick Moore (Pilotmoon Software),
+licensed under the Apache License, Version 2.0. The code was ported to Swift and changed.
