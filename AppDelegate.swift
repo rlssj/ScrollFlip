@@ -145,13 +145,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: Showing windows
 
     private func showPrefs(permissionsPane: Bool) {
+        // in the Dock while the settings are open, and back in the background when they close
+        NSApp.setActivationPolicy(.regular)
         NSApp.activate()
         permissionsManager.refresh(for: 60)
         if prefsWindowController == nil {
             prefsWindowController = PrefsWindowController(appDelegate: self)
             // the settings window is rebuilt each time it opens, so closed it takes no memory
             prefsWindowController?.onClose = { [weak self] in
-                DispatchQueue.main.async { self?.prefsWindowController = nil }
+                DispatchQueue.main.async {
+                    self?.prefsWindowController = nil
+                    NSApp.setActivationPolicy(.accessory)
+                }
             }
         }
         if permissionsPane {

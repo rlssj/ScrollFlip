@@ -29,5 +29,7 @@ cat > $app/Contents/Info.plist <<PLIST
   <key>LSUIElement</key><true/>
 </dict></plist>
 PLIST
-codesign --force -s - $app
+# Ad-hoc signatures are normally identified by their hash, which changes with every build and makes macOS
+# forget the Accessibility permission. Requiring only the bundle identifier keeps the permission across builds.
+codesign --force -s - -r='designated => identifier "com.raul.scrollflip"' $app
 echo "Built $PWD/$app"
