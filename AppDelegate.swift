@@ -63,7 +63,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // opening the app again from Finder shows the settings, which matters when the menu bar item is hidden
+    /* Opening the app from Finder or Spotlight shows the settings, which matters as there's no menu bar item.
+     An accessory app isn't always sent the reopen event, but it is made active; at login it isn't. */
+    func applicationDidBecomeActive(_ notification: Notification) {
+        if !NSApp.windows.contains(where: \.isVisible) {
+            orderFrontPreferencesPanel(nil)
+        }
+    }
+
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         orderFrontPreferencesPanel(nil)
         return false
