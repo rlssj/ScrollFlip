@@ -1,4 +1,4 @@
-# Compila ScrollFlip en GitHub y la publica como release "latest" (ScrollFlip.zip),
+# Compila ScrollFlip en GitHub y la publica como instalador (ScrollFlip.dmg) en la release de su versión,
 # junto con capturas de la ventana de ajustes para revisar el diseño.
 name: Compilar
 
@@ -42,10 +42,20 @@ jobs:
           swiftc -O -o close-test Tests/CloseButtonTest.swift
           ./close-test
 
+      - name: Crear el instalador
+        run: |
+          mkdir dmg
+          cp -R ScrollFlip.app dmg/
+          ln -s /Applications dmg/Aplicaciones
+          hdiutil create -volname ScrollFlip -srcfolder dmg -ov -format UDZO ScrollFlip.dmg
+
       - name: Publicar
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ditto -c -k --keepParent ScrollFlip.app ScrollFlip.zip
-          gh release delete latest --yes --cleanup-tag || true
-          gh release create latest ScrollFlip.zip --title "ScrollFlip" --notes "Compilada desde ${GITHUB_SHA::7}." --latest
+          version=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" ScrollFlip.app/Contents/Info.plist)
+          if ! gh release view "v$version" >/dev/null 2>&1; then
+            gh release create "v$version" --title "ScrollFlip $version" --latest \
+              --notes "Descarga **ScrollFlip.dmg**, ábrelo y arrastra ScrollFlip a Aplicaciones."
+          fi
+          gh release upload "v$version" ScrollFlip.dmg --clobber

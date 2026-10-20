@@ -7,8 +7,8 @@ App para macOS que hace dos cosas:
 
 ## Instalar
 
-1. Descarga **ScrollFlip.zip** de la [última versión](../../releases/latest) y descomprímelo.
-2. Mueve **ScrollFlip** a Aplicaciones.
+1. Descarga **ScrollFlip.dmg** de la [última versión](../../releases/latest) y ábrelo.
+2. Arrastra **ScrollFlip** a la carpeta **Aplicaciones**.
 3. Ábrela. Como no está firmada por Apple, macOS dirá que no puede comprobarla: ve a Ajustes del Sistema → Privacidad y seguridad y, abajo del todo, pulsa **Abrir igualmente**. Solo hace falta la primera vez.
 4. Dale el permiso de **Accesibilidad** cuando lo pida.
 
