@@ -64,6 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         reverser.active = model.scrollEnabled && permitted
         statusController.visible = model.showInMenuBar
         statusController.enabled = (model.quitEnabled || model.scrollEnabled) && permitted
+        debug("permitted \(permitted), quit tap \(quitter.active), scroll tap \(reverser.active)")
         scrollItem.state = model.scrollEnabled ? .on : .off
         quitItem.state = model.quitEnabled ? .on : .off
     }

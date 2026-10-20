@@ -25,6 +25,12 @@ enum Prefs {
     }
 }
 
+// Messages for the GitHub test only: printed when SCROLLFLIP_DEBUG is set, never saved anywhere.
+let debugging = ProcessInfo.processInfo.environment["SCROLLFLIP_DEBUG"] != nil
+func debug(_ message: @autoclosure () -> String) {
+    if debugging { print("[ScrollFlip] \(message())") }
+}
+
 extension Notification.Name {
     // posted when the enabled state, the permission or the menu bar setting changes
     static let scrollFlipStateChanged = Notification.Name("ScrollFlipStateChanged")

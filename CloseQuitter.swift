@@ -44,6 +44,7 @@ final class CloseQuitter {
 
     fileprivate func mouseDown(at point: CGPoint) {
         pressed = closeButton(at: point)
+        debug("mouse down at \(point): \(pressed.map { "close button of pid \($0.pid) in \($0.frame)" } ?? "no close button")")
     }
 
     fileprivate func mouseUp(at point: CGPoint) {
@@ -51,6 +52,7 @@ final class CloseQuitter {
         // so we check against where the button was when it was pressed rather than asking again.
         guard let (pid, frame) = pressed else { return }
         pressed = nil
+        debug("mouse up at \(point), inside the button: \(frame.contains(point))")
         guard frame.contains(point),
               let app = NSRunningApplication(processIdentifier: pid),
               app != NSRunningApplication.current, // our own windows just close
