@@ -14,7 +14,7 @@ enum Snapshot {
         let model = AppModel(permissions: PermissionsManager())
         for (name, appearance) in [("claro", NSAppearance.Name.aqua), ("oscuro", .darkAqua)] {
             let view = NSHostingView(rootView: SettingsView(model: model))
-            view.frame = NSRect(x: 0, y: 0, width: 480, height: 730)
+            view.frame = NSRect(origin: .zero, size: view.fittingSize)
             let window = NSWindow(contentRect: view.frame, styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
             window.appearance = NSAppearance(named: appearance)
             window.titlebarAppearsTransparent = true

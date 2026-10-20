@@ -6,13 +6,14 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
 
     init(model: AppModel) {
         let hosting = NSHostingController(rootView: SettingsView(model: model))
+        // the window takes the size of its content, so nothing ever needs scrolling
+        hosting.sizingOptions = .preferredContentSize
         let window = NSWindow(contentViewController: hosting)
         window.styleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
         window.isReleasedWhenClosed = false
-        window.setContentSize(NSSize(width: 480, height: 730))
         super.init(window: window)
         window.delegate = self
     }
