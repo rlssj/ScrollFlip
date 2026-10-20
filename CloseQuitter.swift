@@ -1,25 +1,44 @@
 import AppKit
 import ApplicationServices
 
-// The close button at this point (global, top-left origin): its app's pid and its frame, or nil.
-private func closeButton(at point: CGPoint) -> (pid: pid_t, frame: CGRect)? {
-    var element: AXUIElement?
-    guard AXUIElementCopyElementAtPosition(AXUIElementCreateSystemWide(), Float(point.x), Float(point.y), &element) == .success,
-          let element else { return nil }
-    var subrole: CFTypeRef?
-    guard AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subrole) == .success,
-          let subrole = subrole as? String, subrole == kAXCloseButtonSubrole as String else { return nil }
-    var pid: pid_t = 0
-    guard AXUIElementGetPid(element, &pid) == .success else { return nil }
-    var position: CFTypeRef?, size: CFTypeRef?
+private func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
+    var value: CFTypeRef?
+    return AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success ? value : nil
+}
+
+private func frame(of element: AXUIElement) -> CGRect? {
+    guard let position = attribute(element, kAXPositionAttribute), let size = attribute(element, kAXSizeAttribute) else { return nil }
     var origin = CGPoint.zero, extent = CGSize.zero
-    if AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &position) == .success,
-       AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &size) == .success {
-        AXValueGetValue(position as! AXValue, .cgPoint, &origin)
-        AXValueGetValue(size as! AXValue, .cgSize, &extent)
+    AXValueGetValue(position as! AXValue, .cgPoint, &origin)
+    AXValueGetValue(size as! AXValue, .cgSize, &extent)
+    return CGRect(origin: origin, size: extent)
+}
+
+/* The close button at this point (global, top-left origin): its app's pid and its frame, or nil.
+ Asking what is at a point doesn't always answer with the button itself (it can be the window or a group
+ around the title bar buttons), so we also look up the close button of the window there. */
+private func closeButton(at point: CGPoint) -> (pid: pid_t, frame: CGRect)? {
+    var hit: AXUIElement?
+    guard AXUIElementCopyElementAtPosition(AXUIElementCreateSystemWide(), Float(point.x), Float(point.y), &hit) == .success,
+          let hit else { return nil }
+    var button: AXUIElement?
+    if attribute(hit, kAXSubroleAttribute) as? String == kAXCloseButtonSubrole as String {
+        button = hit
+    } else {
+        let window = attribute(hit, kAXRoleAttribute) as? String == kAXWindowRole as String ? hit
+            : attribute(hit, kAXWindowAttribute).map { $0 as! AXUIElement }
+        if let window, let candidate = attribute(window, kAXCloseButtonAttribute) {
+            button = (candidate as! AXUIElement)
+        }
+        debug("at \(point): \(attribute(hit, kAXRoleAttribute) as? String ?? "-")/\(attribute(hit, kAXSubroleAttribute) as? String ?? "-"), window close button \(button.flatMap { frame(of: $0) }.map { "\($0)" } ?? "none")")
     }
-    // a little slack, and never smaller than the point clicked
-    return (pid, CGRect(origin: origin, size: extent).insetBy(dx: -2, dy: -2).union(CGRect(origin: point, size: .zero)))
+    guard let button, let buttonFrame = frame(of: button) else { return nil }
+    // a little slack around the button
+    let area = buttonFrame.insetBy(dx: -2, dy: -2)
+    guard area.contains(point) else { return nil }
+    var pid: pid_t = 0
+    guard AXUIElementGetPid(button, &pid) == .success else { return nil }
+    return (pid, area)
 }
 
 /* A listen-only event tap on left clicks. When a click on a window's red close button completes,
