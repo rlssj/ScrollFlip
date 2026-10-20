@@ -28,7 +28,7 @@ enum Prefs {
 // Messages for the GitHub test only: printed when SCROLLFLIP_DEBUG is set, never saved anywhere.
 let debugging = ProcessInfo.processInfo.environment["SCROLLFLIP_DEBUG"] != nil
 func debug(_ message: @autoclosure () -> String) {
-    if debugging { print("[ScrollFlip] \(message())") }
+    if debugging { FileHandle.standardError.write("[ScrollFlip] \(message())\n".data(using: .utf8)!) }
 }
 
 extension Notification.Name {
