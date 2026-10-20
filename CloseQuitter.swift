@@ -1,6 +1,13 @@
 import AppKit
 import ApplicationServices
 
+// An app's Accessibility element, with a short timeout: an app that is busy or hung mustn't hold us up.
+private func application(_ pid: pid_t) -> AXUIElement {
+    let element = AXUIElementCreateApplication(pid)
+    AXUIElementSetMessagingTimeout(element, 0.3)
+    return element
+}
+
 private func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
     var value: CFTypeRef?
     return AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success ? value : nil
@@ -43,7 +50,7 @@ private func isMinimized(_ window: AXUIElement) -> Bool {
 
 // The app's ordinary windows that are still showing; panels and palettes don't count.
 private func visibleStandardWindowCount(of pid: pid_t) -> Int {
-    let windows = attribute(AXUIElementCreateApplication(pid), kAXWindowsAttribute) as? [AXUIElement] ?? []
+    let windows = attribute(application(pid), kAXWindowsAttribute) as? [AXUIElement] ?? []
     return windows.filter { isStandard($0) && !isMinimized($0) }.count
 }
 
@@ -58,7 +65,7 @@ private func closeButton(at point: CGPoint) -> (pid: pid_t, frame: CGRect, other
         debug("at \(point): not in the top left corner of the window at \(bounds)")
         return nil
     }
-    let windows = attribute(AXUIElementCreateApplication(pid), kAXWindowsAttribute) as? [AXUIElement] ?? []
+    let windows = attribute(application(pid), kAXWindowsAttribute) as? [AXUIElement] ?? []
     for window in windows {
         guard let button = attribute(window, kAXCloseButtonAttribute), let buttonFrame = frame(of: button as! AXUIElement) else { continue }
         // a little slack around the button
@@ -146,7 +153,7 @@ final class CloseQuitter {
     }
 }
 
-/* Accessibility queries are slow, so they run on the main queue, never in the tap callback, which holds up
+/* Accessibility queries are slow, so they run on the main queue, never in the tap callback (on its own thread), which holds up
  every click. The main queue is serial, so each mouse up is handled after its mouse down.
 
  The one exception is an Option click: on a close button macOS closes all the app's windows, but we want it
