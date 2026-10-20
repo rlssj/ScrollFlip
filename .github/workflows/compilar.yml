@@ -36,7 +36,8 @@ jobs:
       - name: Probar el botón rojo
         continue-on-error: true
         run: |
-          open ScrollFlip.app
+          # launched from this shell so it shares the runner's Accessibility permission
+          ScrollFlip.app/Contents/MacOS/ScrollFlip &
           sleep 5
           swiftc -O -o close-test Tests/CloseButtonTest.swift
           ./close-test
