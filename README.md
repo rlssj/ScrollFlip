@@ -3,7 +3,7 @@
 App para macOS que hace dos cosas:
 
 - **Cambia el desplazamiento**: eliges una dirección para el trackpad y otra para el ratón (Natural, Clásico o Sin cambios), y si quieres, también la del desplazamiento horizontal.
-- **Cierra la app entera con el botón rojo** de una ventana, como si pulsaras ⌘Q. En las apps que añadas como excepción (o si mantienes ⌥ al hacer clic) solo se cierra la ventana. El Finder nunca se cierra.
+- **Cierra la app entera con el botón rojo** cuando cierras su última ventana, como si pulsaras ⌘Q. Si tiene más ventanas abiertas, solo se cierra esa. En las apps que añadas como excepción (o si mantienes ⌥ al hacer clic) solo se cierra la ventana. El Finder nunca se cierra.
 
 ## Instalar
 

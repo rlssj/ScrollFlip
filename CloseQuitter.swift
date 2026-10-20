@@ -33,6 +33,12 @@ private func window(at point: CGPoint) -> (pid: pid_t, bounds: CGRect)? {
     return nil
 }
 
+// The app's ordinary windows, minimized ones included; panels and palettes don't count.
+private func standardWindowCount(of pid: pid_t) -> Int {
+    let windows = attribute(AXUIElementCreateApplication(pid), kAXWindowsAttribute) as? [AXUIElement] ?? []
+    return windows.filter { attribute($0, kAXSubroleAttribute) as? String == kAXStandardWindowSubrole as String }.count
+}
+
 /* The close button at this point (global, top-left origin): its app's pid and its frame, or nil.
  Asking Accessibility what is at a point doesn't reliably answer with the button (it can even answer with the
  menu bar), so we find the window from the window list and ask its app where its close button is. */
@@ -57,7 +63,7 @@ private func closeButton(at point: CGPoint) -> (pid: pid_t, frame: CGRect)? {
 }
 
 /* A listen-only event tap on left clicks. When a click on a window's red close button completes,
- the app owning that window is asked to quit, as if the user had chosen Quit from its menu.
+ the app owning that window is asked to quit if that was its last window, as if the user had chosen Quit from its menu.
  Holding Option while clicking, or clicking in an app listed as an exception, only closes the window. */
 final class CloseQuitter {
     fileprivate var tap: EventTap!
@@ -96,8 +102,24 @@ final class CloseQuitter {
             debug("not quitting pid \(pid)")
             return
         }
-        debug("quitting \(app.bundleIdentifier ?? "\(pid)")")
-        app.terminate() // a normal quit, so the app can still ask to save changes
+        quitWhenWindowless(app, checksLeft: 6)
+    }
+
+    /* Only the last window quits the app: with others still open (say a private and a normal Firefox window),
+     just that window closes. Closing takes a moment (an animation, or a question about unsaved changes),
+     so we look a few times before deciding. */
+    private func quitWhenWindowless(_ app: NSRunningApplication, checksLeft: Int) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            let windows = standardWindowCount(of: app.processIdentifier)
+            if windows == 0 {
+                debug("no windows left, quitting \(app.bundleIdentifier ?? "\(app.processIdentifier)")")
+                app.terminate() // a normal quit, so the app can still ask to save changes
+            } else if checksLeft > 1 {
+                self.quitWhenWindowless(app, checksLeft: checksLeft - 1)
+            } else {
+                debug("\(windows) windows left, not quitting \(app.bundleIdentifier ?? "\(app.processIdentifier)")")
+            }
+        }
     }
 }
 

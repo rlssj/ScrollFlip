@@ -98,7 +98,7 @@ struct SettingsView: View {
     private var quitSection: some View {
         Section {
             ToggleRow(symbol: "xmark", color: .red, title: "Salir con el botón rojo",
-                      subtitle: "Cerrar una ventana cierra la app entera, como ⌘Q",
+                      subtitle: "Al cerrar la última ventana de una app, se cierra la app entera",
                       isOn: $model.quitEnabled)
             if model.quitEnabled {
                 VStack(alignment: .leading, spacing: 8) {
@@ -140,7 +140,7 @@ struct SettingsView: View {
         } header: {
             Text("Cerrar apps")
         } footer: {
-            Text("Si hay algo sin guardar, la app te preguntará antes de cerrarse. El Finder nunca se cierra.")
+            Text("Si la app tiene más ventanas abiertas, solo se cierra esa. Si hay algo sin guardar, te preguntará antes. El Finder nunca se cierra.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
