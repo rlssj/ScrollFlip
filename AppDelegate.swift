@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         terminateOthers()
         permissionsManager = PermissionsManager()
         model = AppModel(permissions: permissionsManager)
+        model.loginItem.restore()
 
         statusController = StatusItemController(menu: makeStatusMenu())
 
