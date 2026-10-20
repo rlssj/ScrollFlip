@@ -14,31 +14,37 @@ private func frame(of element: AXUIElement) -> CGRect? {
     return CGRect(origin: origin, size: extent)
 }
 
-/* The close button at this point (global, top-left origin): its app's pid and its frame, or nil.
- Asking what is at a point doesn't always answer with the button itself (it can be the window or a group
- around the title bar buttons), so we also look up the close button of the window there. */
-private func closeButton(at point: CGPoint) -> (pid: pid_t, frame: CGRect)? {
-    var hit: AXUIElement?
-    guard AXUIElementCopyElementAtPosition(AXUIElementCreateSystemWide(), Float(point.x), Float(point.y), &hit) == .success,
-          let hit else { return nil }
-    var button: AXUIElement?
-    if attribute(hit, kAXSubroleAttribute) as? String == kAXCloseButtonSubrole as String {
-        button = hit
-    } else {
-        let window = attribute(hit, kAXRoleAttribute) as? String == kAXWindowRole as String ? hit
-            : attribute(hit, kAXWindowAttribute).map { $0 as! AXUIElement }
-        if let window, let candidate = attribute(window, kAXCloseButtonAttribute) {
-            button = (candidate as! AXUIElement)
-        }
-        debug("at \(point): \(attribute(hit, kAXRoleAttribute) as? String ?? "-")/\(attribute(hit, kAXSubroleAttribute) as? String ?? "-"), window close button \(button.flatMap { frame(of: $0) }.map { "\($0)" } ?? "none")")
+// The topmost normal window at this point: its owner's pid and its bounds (global, top-left origin).
+private func window(at point: CGPoint) -> (pid: pid_t, bounds: CGRect)? {
+    let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+    for info in list {
+        guard let bounds = (info[kCGWindowBounds as String] as! CFDictionary?).flatMap({ CGRect(dictionaryRepresentation: $0) }),
+              bounds.contains(point) else { continue }
+        // the first window here, front to back, is the one clicked; only normal windows have a close button
+        guard info[kCGWindowLayer as String] as? Int == 0, let pid = info[kCGWindowOwnerPID as String] as? pid_t else { return nil }
+        return (pid, bounds)
     }
-    guard let button, let buttonFrame = frame(of: button) else { return nil }
-    // a little slack around the button
-    let area = buttonFrame.insetBy(dx: -2, dy: -2)
-    guard area.contains(point) else { return nil }
-    var pid: pid_t = 0
-    guard AXUIElementGetPid(button, &pid) == .success else { return nil }
-    return (pid, area)
+    return nil
+}
+
+/* The close button at this point (global, top-left origin): its app's pid and its frame, or nil.
+ Asking Accessibility what is at a point doesn't reliably answer with the button (it can even answer with the
+ menu bar), so we find the window from the window list and ask its app where its close button is. */
+private func closeButton(at point: CGPoint) -> (pid: pid_t, frame: CGRect)? {
+    // close buttons sit in a window's top left corner; skip every other click before asking the app anything
+    guard let (pid, bounds) = window(at: point),
+          point.x - bounds.minX < 160, point.y - bounds.minY < 90 else { return nil }
+    let windows = attribute(AXUIElementCreateApplication(pid), kAXWindowsAttribute) as? [AXUIElement] ?? []
+    for window in windows {
+        guard let button = attribute(window, kAXCloseButtonAttribute), let buttonFrame = frame(of: button as! AXUIElement) else { continue }
+        // a little slack around the button
+        let area = buttonFrame.insetBy(dx: -2, dy: -2)
+        if area.contains(point) {
+            return (pid, area)
+        }
+    }
+    debug("at \(point): window of pid \(pid) at \(bounds), no close button there")
+    return nil
 }
 
 /* A listen-only event tap on left clicks. When a click on a window's red close button completes,
