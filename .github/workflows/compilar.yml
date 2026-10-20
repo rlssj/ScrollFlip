@@ -1,0 +1,42 @@
+# Compila ScrollFlip en GitHub y la publica como release "latest" (ScrollFlip.zip),
+# junto con capturas de la ventana de ajustes para revisar el diseño.
+name: Compilar
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  compilar:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Elegir el Xcode más nuevo
+        run: |
+          xcode=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          sudo xcode-select -s "$xcode"
+          xcodebuild -version
+
+      - name: Compilar
+        run: ./build.sh
+
+      - name: Capturas de los ajustes
+        run: ScrollFlip.app/Contents/MacOS/ScrollFlip --snapshot capturas
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: capturas
+          path: capturas
+
+      - name: Publicar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ditto -c -k --keepParent ScrollFlip.app ScrollFlip.zip
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest ScrollFlip.zip --title "ScrollFlip" --notes "Compilada desde ${GITHUB_SHA::7}." --latest

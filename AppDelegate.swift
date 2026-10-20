@@ -2,44 +2,21 @@ import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let appName = "ScrollFlip"
-    var appVersion: String {
-        let info = Bundle.main.infoDictionary ?? [:]
-        return "\(info["CFBundleShortVersionString"] ?? "") (\(info["CFBundleVersion"] ?? ""))"
-    }
 
-    private(set) var permissionsManager: PermissionsManager!
-    private(set) var loginItemController = LoginItemController()
+    private var permissionsManager: PermissionsManager!
+    private var model: AppModel!
     private let quitter = CloseQuitter()
     private let reverser = ScrollReverser()
     private var statusController: StatusItemController!
-    private var enableItem: NSMenuItem!
     private var scrollItem: NSMenuItem!
-    private var welcomeWindowController: WelcomeWindowController?
-    private var prefsWindowController: PrefsWindowController?
-
-    // the two switches only take effect while we have Accessibility permission
-    var enabled: Bool {
-        get { UserDefaults.standard.bool(forKey: Prefs.enabled) }
-        set { setSwitch(Prefs.enabled, newValue) }
-    }
-
-    var scrollEnabled: Bool {
-        get { UserDefaults.standard.bool(forKey: Prefs.scrollEnabled) }
-        set { setSwitch(Prefs.scrollEnabled, newValue) }
-    }
-
-    private func setSwitch(_ key: String, _ value: Bool) {
-        UserDefaults.standard.set(value, forKey: key)
-        NotificationCenter.default.post(name: .scrollFlipStateChanged, object: nil)
-        if value && !permissionsManager.accessibilityEnabled {
-            showPermissionsUI()
-        }
-    }
+    private var quitItem: NSMenuItem!
+    private var settingsWindowController: SettingsWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Prefs.register()
         terminateOthers()
         permissionsManager = PermissionsManager()
+        model = AppModel(permissions: permissionsManager)
 
         statusController = StatusItemController(menu: makeStatusMenu())
 
@@ -49,16 +26,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(self, selector: #selector(stateChanged), name: .scrollFlipStateChanged, object: nil)
         stateChanged()
 
-        // Show the welcome window the first time
-        if !UserDefaults.standard.bool(forKey: Prefs.hasRunBefore) {
-            UserDefaults.standard.set(true, forKey: Prefs.hasRunBefore)
-            welcomeWindowController = WelcomeWindowController(menuBar: !UserDefaults.standard.bool(forKey: Prefs.hideIcon))
-            welcomeWindowController?.showWindow(self)
-        }
-
         // without permission, open the settings and show the system pop-up to grant it
         if !permissionsManager.accessibilityEnabled {
-            showPermissionsUI()
+            showSettings(nil)
             permissionsManager.requestAccessibilityPermission()
         }
     }
@@ -67,12 +37,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
      An accessory app isn't always sent the reopen event, but it is made active; at login it isn't. */
     func applicationDidBecomeActive(_ notification: Notification) {
         if !NSApp.windows.contains(where: \.isVisible) {
-            orderFrontPreferencesPanel(nil)
+            showSettings(nil)
         }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        orderFrontPreferencesPanel(nil)
+        showSettings(nil)
         return false
     }
 
@@ -85,27 +55,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func stateChanged() {
         let permitted = permissionsManager.accessibilityEnabled
-        let defaults = UserDefaults.standard
-        reverser.trackpadDirection = ScrollDirection(rawValue: defaults.integer(forKey: Prefs.trackpadDirection)) ?? .unchanged
-        reverser.mouseDirection = ScrollDirection(rawValue: defaults.integer(forKey: Prefs.mouseDirection)) ?? .unchanged
-        reverser.trackpadHorizontal = defaults.bool(forKey: Prefs.trackpadHorizontal)
-        reverser.mouseHorizontal = defaults.bool(forKey: Prefs.mouseHorizontal)
-        quitter.active = enabled && permitted
-        reverser.active = scrollEnabled && permitted
-        statusController.visible = !UserDefaults.standard.bool(forKey: Prefs.hideIcon)
-        statusController.enabled = (enabled || scrollEnabled) && permitted
-        enableItem.state = enabled ? .on : .off
-        scrollItem.state = scrollEnabled ? .on : .off
+        reverser.trackpadDirection = model.trackpadDirection
+        reverser.mouseDirection = model.mouseDirection
+        reverser.trackpadHorizontal = model.trackpadHorizontal
+        reverser.mouseHorizontal = model.mouseHorizontal
+        quitter.active = model.quitEnabled && permitted
+        reverser.active = model.scrollEnabled && permitted
+        statusController.visible = model.showInMenuBar
+        statusController.enabled = (model.quitEnabled || model.scrollEnabled) && permitted
+        scrollItem.state = model.scrollEnabled ? .on : .off
+        quitItem.state = model.quitEnabled ? .on : .off
     }
 
     // MARK: Menus
 
     private func makeStatusMenu() -> NSMenu {
         let menu = NSMenu()
-        scrollItem = menu.addItem(withTitle: "Invertir desplazamiento", action: #selector(toggleScrollEnabled(_:)), keyEquivalent: "")
+        scrollItem = menu.addItem(withTitle: "Cambiar el desplazamiento", action: #selector(toggleScroll(_:)), keyEquivalent: "")
         scrollItem.target = self
-        enableItem = menu.addItem(withTitle: "Cerrar apps con el botón rojo", action: #selector(toggleEnabled(_:)), keyEquivalent: "")
-        enableItem.target = self
+        quitItem = menu.addItem(withTitle: "Salir con el botón rojo", action: #selector(toggleQuit(_:)), keyEquivalent: "")
+        quitItem.target = self
         menu.addItem(.separator())
         addSettingsAndQuitItems(to: menu, separated: false)
         return menu
@@ -127,49 +96,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // Used by both the status menu and the app menu.
     private func addSettingsAndQuitItems(to menu: NSMenu, separated: Bool) {
-        menu.addItem(withTitle: "Ajustes…", action: #selector(orderFrontPreferencesPanel(_:)), keyEquivalent: ",").target = self
+        menu.addItem(withTitle: "Ajustes…", action: #selector(showSettings(_:)), keyEquivalent: ",").target = self
         if separated {
             menu.addItem(.separator())
         }
         menu.addItem(withTitle: "Salir de \(appName)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q").target = NSApp
     }
 
-    @objc private func toggleEnabled(_ sender: Any?) {
-        enabled.toggle()
+    @objc private func toggleScroll(_ sender: Any?) {
+        model.scrollEnabled.toggle()
     }
 
-    @objc private func toggleScrollEnabled(_ sender: Any?) {
-        scrollEnabled.toggle()
+    @objc private func toggleQuit(_ sender: Any?) {
+        model.quitEnabled.toggle()
     }
 
-    // MARK: Showing windows
+    // MARK: Settings window
 
-    private func showPrefs(permissionsPane: Bool) {
+    @objc func showSettings(_ sender: Any?) {
         // in the Dock while the settings are open, and back in the background when they close
         NSApp.setActivationPolicy(.regular)
         NSApp.activate()
         permissionsManager.refresh(for: 60)
-        if prefsWindowController == nil {
-            prefsWindowController = PrefsWindowController(appDelegate: self)
-            // the settings window is rebuilt each time it opens, so closed it takes no memory
-            prefsWindowController?.onClose = { [weak self] in
+        if settingsWindowController == nil {
+            settingsWindowController = SettingsWindowController(model: model)
+            // the window is rebuilt each time it opens, so closed it takes no memory
+            settingsWindowController?.onClose = { [weak self] in
                 DispatchQueue.main.async {
-                    self?.prefsWindowController = nil
+                    self?.settingsWindowController = nil
                     NSApp.setActivationPolicy(.accessory)
                 }
             }
         }
-        if permissionsPane {
-            prefsWindowController?.showPermissionsPane()
-        }
-        prefsWindowController?.showWindow(self)
-    }
-
-    @objc func orderFrontPreferencesPanel(_ sender: Any?) {
-        showPrefs(permissionsPane: false)
-    }
-
-    private func showPermissionsUI() {
-        showPrefs(permissionsPane: true)
+        settingsWindowController?.showWindow(self)
     }
 }

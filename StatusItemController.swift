@@ -17,8 +17,10 @@ final class StatusItemController: NSObject {
             item.button?.target = self
             item.button?.action = #selector(statusButtonClicked(_:))
             item.button?.sendAction(on: [.leftMouseDown, .rightMouseDown])
-            // the app's logo in colour, cut out of its background (StatusIcon.png and @2x in Resources)
+            // the app's logo cut out of its background (StatusIcon.png and @2x in Resources), drawn in a
+            // single colour like every other menu bar icon: as a template only its shape is used
             let image = NSImage(named: "StatusIcon")
+            image?.isTemplate = true
             image?.accessibilityDescription = "ScrollFlip"
             item.button?.image = image
             item.button?.appearsDisabled = !enabled
