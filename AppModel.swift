@@ -41,6 +41,36 @@ final class AppModel: ObservableObject {
         get { defaults.bool(forKey: Prefs.enabled) }
         set { save(newValue, Prefs.enabled) }
     }
+    // apps whose close button only closes the window, as bundle identifiers
+    var quitExceptions: [String] {
+        get { defaults.stringArray(forKey: Prefs.quitExceptions) ?? [] }
+        set { save(newValue, Prefs.quitExceptions) }
+    }
+
+    func addQuitException() {
+        let panel = NSOpenPanel()
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        panel.allowedContentTypes = [.application]
+        panel.allowsMultipleSelection = true
+        panel.prompt = "Añadir"
+        panel.message = "Elige las apps en las que el botón rojo solo debe cerrar la ventana"
+        guard panel.runModal() == .OK else { return }
+        let added = panel.urls.compactMap { Bundle(url: $0)?.bundleIdentifier }
+        quitExceptions = Array(Set(quitExceptions + added)).sorted { appName($0) < appName($1) }
+    }
+
+    func appName(_ bundleID: String) -> String {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else { return bundleID }
+        return FileManager.default.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: "")
+    }
+
+    func appIcon(_ bundleID: String) -> NSImage {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
+            return NSWorkspace.shared.icon(for: .application)
+        }
+        return NSWorkspace.shared.icon(forFile: url.path)
+    }
+
     var showInMenuBar: Bool {
         get { !defaults.bool(forKey: Prefs.hideIcon) }
         set { save(!newValue, Prefs.hideIcon) }

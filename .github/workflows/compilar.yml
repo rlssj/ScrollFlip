@@ -33,6 +33,14 @@ jobs:
           name: capturas
           path: capturas
 
+      - name: Probar el botón rojo
+        continue-on-error: true
+        run: |
+          open ScrollFlip.app
+          sleep 5
+          swiftc -O -o close-test Tests/CloseButtonTest.swift
+          ./close-test
+
       - name: Publicar
         env:
           GH_TOKEN: ${{ github.token }}

@@ -15,10 +15,13 @@ private func closeButtonOwner(at point: CGPoint) -> pid_t? {
 
 /* A listen-only event tap on left clicks. When a click on a window's red close button completes,
  the app owning that window is asked to quit, as if the user had chosen Quit from its menu.
- Holding Option while clicking keeps the normal behaviour (only the window closes). */
+ Holding Option while clicking, or clicking in an app listed as an exception, only closes the window. */
 final class CloseQuitter {
     fileprivate var tap: EventTap!
     private var pressedPid: pid_t?
+
+    // bundle identifiers of apps whose close button only closes the window
+    var exceptions: Set<String> = []
 
     init() {
         tap = EventTap(events: [.leftMouseDown, .leftMouseUp], options: .listenOnly, callback: clickCallback, userInfo: self)
@@ -41,7 +44,8 @@ final class CloseQuitter {
         guard closeButtonOwner(at: point) == pid,
               let app = NSRunningApplication(processIdentifier: pid),
               app != NSRunningApplication.current, // our own windows just close
-              app.bundleIdentifier != "com.apple.finder" // Finder relaunches itself
+              app.bundleIdentifier != "com.apple.finder", // Finder relaunches itself
+              !exceptions.contains(app.bundleIdentifier ?? "")
         else { return }
         app.terminate() // a normal quit, so the app can still ask to save changes
     }
@@ -55,7 +59,7 @@ private let clickCallback: CGEventTapCallBack = { _, type, event, userInfo in
     switch type {
     case .tapDisabledByTimeout, .tapDisabledByUserInput:
         quitter.tap.reenable()
-    case .leftMouseDown where !event.flags.contains(.maskAlternate):
+    case .leftMouseDown where !optionHeld(event):
         DispatchQueue.main.async { quitter.mouseDown(at: point) }
     case .leftMouseUp:
         DispatchQueue.main.async { quitter.mouseUp(at: point) }
@@ -63,4 +67,10 @@ private let clickCallback: CGEventTapCallBack = { _, type, event, userInfo in
         break
     }
     return Unmanaged.passUnretained(event)
+}
+
+// Clicks can arrive without their modifier flags (as Scroll Reverser found on macOS 27 for status item clicks),
+// so also ask for the keyboard's current state.
+private func optionHeld(_ event: CGEvent) -> Bool {
+    event.flags.contains(.maskAlternate) || CGEventSource.flagsState(.combinedSessionState).contains(.maskAlternate)
 }

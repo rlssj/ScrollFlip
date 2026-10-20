@@ -3,13 +3,13 @@
 App para macOS que hace dos cosas:
 
 - **Cambia el desplazamiento**: eliges una dirección para el trackpad y otra para el ratón (Natural, Clásico o Sin cambios), y si quieres, también la del desplazamiento horizontal.
-- **Cierra la app entera con el botón rojo** de una ventana, como si pulsaras ⌘Q. Mantén ⌥ al hacer clic para cerrar solo la ventana. El Finder nunca se cierra.
+- **Cierra la app entera con el botón rojo** de una ventana, como si pulsaras ⌘Q. En las apps que añadas como excepción (o si mantienes ⌥ al hacer clic) solo se cierra la ventana. El Finder nunca se cierra.
 
 ## Instalar
 
 1. Descarga **ScrollFlip.zip** de la [última versión](../../releases/latest) y descomprímelo.
 2. Mueve **ScrollFlip** a Aplicaciones.
-3. La primera vez, haz **clic derecho → Abrir** (no está firmada por Apple, así que macOS avisa). Si no te deja, ve a Ajustes del Sistema → Privacidad y seguridad y pulsa **Abrir igualmente**.
+3. Ábrela. Como no está firmada por Apple, macOS dirá que no puede comprobarla: ve a Ajustes del Sistema → Privacidad y seguridad y, abajo del todo, pulsa **Abrir igualmente**. Solo hace falta la primera vez.
 4. Dale el permiso de **Accesibilidad** cuando lo pida.
 
 No ocupa sitio en la barra de menús ni en el Dock: para ver los ajustes, vuelve a abrir ScrollFlip.

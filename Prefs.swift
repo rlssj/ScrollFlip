@@ -8,6 +8,7 @@ enum Prefs {
     static let trackpadHorizontal = "TrackpadHorizontal"
     static let mouseHorizontal = "MouseHorizontal"
     static let hideIcon = "HideIcon"
+    static let quitExceptions = "QuitExceptions" // bundle identifiers
 
     static func register() {
         // like Scroll Reverser: natural for trackpads, classic for mice

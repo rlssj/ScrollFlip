@@ -8,6 +8,8 @@ enum Snapshot {
         NSApplication.shared.setActivationPolicy(.prohibited)
         try? FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
         Prefs.register()
+        // a sample exception, to see the list
+        UserDefaults.standard.set(["com.apple.TextEdit"], forKey: Prefs.quitExceptions)
         let model = AppModel(permissions: PermissionsManager())
         for (name, appearance) in [("claro", NSAppearance.Name.aqua), ("oscuro", .darkAqua)] {
             let view = NSHostingView(rootView: SettingsView(model: model))

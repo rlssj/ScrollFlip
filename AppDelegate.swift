@@ -59,6 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         reverser.mouseDirection = model.mouseDirection
         reverser.trackpadHorizontal = model.trackpadHorizontal
         reverser.mouseHorizontal = model.mouseHorizontal
+        quitter.exceptions = Set(model.quitExceptions)
         quitter.active = model.quitEnabled && permitted
         reverser.active = model.scrollEnabled && permitted
         statusController.visible = model.showInMenuBar
