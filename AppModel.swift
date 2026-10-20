@@ -55,7 +55,9 @@ final class AppModel: ObservableObject {
         panel.prompt = "Añadir"
         panel.message = "Elige las apps en las que el botón rojo solo debe cerrar la ventana"
         guard panel.runModal() == .OK else { return }
-        let added = panel.urls.compactMap { Bundle(url: $0)?.bundleIdentifier }
+        // ScrollFlip and the Finder never quit anyway, so they needn't be listed
+        let builtIn = [Bundle.main.bundleIdentifier, "com.apple.finder"]
+        let added = panel.urls.compactMap { Bundle(url: $0)?.bundleIdentifier }.filter { !builtIn.contains($0) }
         quitExceptions = Array(Set(quitExceptions + added)).sorted { appName($0) < appName($1) }
     }
 

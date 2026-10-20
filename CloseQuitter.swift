@@ -33,16 +33,25 @@ private func window(at point: CGPoint) -> (pid: pid_t, bounds: CGRect)? {
     return nil
 }
 
-// The app's ordinary windows, minimized ones included; panels and palettes don't count.
-private func standardWindowCount(of pid: pid_t) -> Int {
-    let windows = attribute(AXUIElementCreateApplication(pid), kAXWindowsAttribute) as? [AXUIElement] ?? []
-    return windows.filter { attribute($0, kAXSubroleAttribute) as? String == kAXStandardWindowSubrole as String }.count
+private func isStandard(_ window: AXUIElement) -> Bool {
+    attribute(window, kAXSubroleAttribute) as? String == kAXStandardWindowSubrole as String
 }
 
-/* The close button at this point (global, top-left origin): its app's pid and its frame, or nil.
+private func isMinimized(_ window: AXUIElement) -> Bool {
+    attribute(window, kAXMinimizedAttribute) as? Bool ?? false
+}
+
+// The app's ordinary windows that are still showing; panels and palettes don't count.
+private func visibleStandardWindowCount(of pid: pid_t) -> Int {
+    let windows = attribute(AXUIElementCreateApplication(pid), kAXWindowsAttribute) as? [AXUIElement] ?? []
+    return windows.filter { isStandard($0) && !isMinimized($0) }.count
+}
+
+/* The close button at this point (global, top-left origin): its app's pid, its frame, and how many other
+ ordinary windows the app has (minimized ones included), or nil.
  Asking Accessibility what is at a point doesn't reliably answer with the button (it can even answer with the
  menu bar), so we find the window from the window list and ask its app where its close button is. */
-private func closeButton(at point: CGPoint) -> (pid: pid_t, frame: CGRect)? {
+private func closeButton(at point: CGPoint) -> (pid: pid_t, frame: CGRect, otherWindows: Int)? {
     // close buttons sit in a window's top left corner; skip every other click before asking the app anything
     guard let (pid, bounds) = window(at: point) else { return nil }
     guard point.x - bounds.minX < 160, point.y - bounds.minY < 90 else {
@@ -55,7 +64,8 @@ private func closeButton(at point: CGPoint) -> (pid: pid_t, frame: CGRect)? {
         // a little slack around the button
         let area = buttonFrame.insetBy(dx: -2, dy: -2)
         if area.contains(point) {
-            return (pid, area)
+            let others = windows.filter { !CFEqual($0, window) && isStandard($0) }.count
+            return (pid, area, others)
         }
     }
     debug("at \(point): window of pid \(pid) at \(bounds), no close button there")
@@ -67,7 +77,7 @@ private func closeButton(at point: CGPoint) -> (pid: pid_t, frame: CGRect)? {
  Holding Option while clicking, or clicking in an app listed as an exception, only closes the window. */
 final class CloseQuitter {
     fileprivate var tap: EventTap!
-    private var pressed: (pid: pid_t, frame: CGRect)?
+    private var pressed: (pid: pid_t, frame: CGRect, otherWindows: Int)?
     // set while an Option click on a close button is having its Option taken away
     fileprivate var strippingOption = false
 
@@ -91,40 +101,46 @@ final class CloseQuitter {
 
     fileprivate func mouseDown(at point: CGPoint) {
         pressed = closeButton(at: point)
-        debug("mouse down at \(point): \(pressed.map { "close button of pid \($0.pid) in \($0.frame)" } ?? "no close button")")
+        debug("mouse down at \(point): \(pressed.map { "close button of pid \($0.pid) in \($0.frame), \($0.otherWindows) other windows" } ?? "no close button")")
     }
 
     fileprivate func mouseUp(at point: CGPoint) {
         // The close button only acts if the mouse is released over it. By now the window may already be gone,
         // so we check against where the button was when it was pressed rather than asking again.
-        guard let (pid, frame) = pressed else { return }
+        guard let (pid, frame, otherWindows) = pressed else { return }
         pressed = nil
         debug("mouse up at \(point), inside the button: \(frame.contains(point))")
         guard frame.contains(point),
               let app = NSRunningApplication(processIdentifier: pid),
-              app != NSRunningApplication.current, // our own windows just close
+              app.bundleIdentifier != Bundle.main.bundleIdentifier, // our own windows just close
               app.bundleIdentifier != "com.apple.finder", // Finder relaunches itself
               !exceptions.contains(app.bundleIdentifier ?? "")
         else {
             debug("not quitting pid \(pid)")
             return
         }
-        quitWhenWindowless(app, checksLeft: 6)
+        // Only the last window quits the app: with others open (say a private and a normal Firefox window,
+        // or one minimized), just that window closes.
+        guard otherWindows == 0 else {
+            debug("\(otherWindows) other windows, not quitting \(app.bundleIdentifier ?? "\(pid)")")
+            return
+        }
+        quitOnceClosed(app, checksLeft: 40)
     }
 
-    /* Only the last window quits the app: with others still open (say a private and a normal Firefox window),
-     just that window closes. Closing takes a moment (an animation, or a question about unsaved changes),
-     so we look a few times before deciding. */
-    private func quitWhenWindowless(_ app: NSRunningApplication, checksLeft: Int) {
+    /* It was the last window, so quit as soon as it stops showing: closed, or hidden or minimized by apps such as
+     Discord that keep running in the background. It can take a moment (an animation), or not happen at all
+     (a question about unsaved changes or open tabs that is cancelled), so we keep looking for up to 10 seconds. */
+    private func quitOnceClosed(_ app: NSRunningApplication, checksLeft: Int) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            let windows = standardWindowCount(of: app.processIdentifier)
-            if windows == 0 {
-                debug("no windows left, quitting \(app.bundleIdentifier ?? "\(app.processIdentifier)")")
+            guard !app.isTerminated else { return }
+            if visibleStandardWindowCount(of: app.processIdentifier) == 0 {
+                debug("last window gone, quitting \(app.bundleIdentifier ?? "\(app.processIdentifier)")")
                 app.terminate() // a normal quit, so the app can still ask to save changes
             } else if checksLeft > 1 {
-                self.quitWhenWindowless(app, checksLeft: checksLeft - 1)
+                self.quitOnceClosed(app, checksLeft: checksLeft - 1)
             } else {
-                debug("\(windows) windows left, not quitting \(app.bundleIdentifier ?? "\(app.processIdentifier)")")
+                debug("the window is still there, not quitting \(app.bundleIdentifier ?? "\(app.processIdentifier)")")
             }
         }
     }
