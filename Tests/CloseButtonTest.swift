@@ -77,7 +77,7 @@ var app = openTextEdit()
 guard let button = closeButtonCentre(of: windows(of: app)[0]) else { fail("no encuentro el botón rojo de TextEdit") }
 click(button, option: false)
 wait(3)
-if running() != nil { fail("botón rojo: TextEdit sigue abierto") }
+if let still = running() { fail("botón rojo: TextEdit sigue abierto, con \(windows(of: still).count) ventanas") }
 print("✅ botón rojo: TextEdit se ha cerrado entero")
 
 // 2. with Option only the window closes

@@ -1,8 +1,8 @@
 import AppKit
 import ApplicationServices
 
-// The pid of the app whose close button is at this point (global, top-left origin), or nil.
-private func closeButtonOwner(at point: CGPoint) -> pid_t? {
+// The close button at this point (global, top-left origin): its app's pid and its frame, or nil.
+private func closeButton(at point: CGPoint) -> (pid: pid_t, frame: CGRect)? {
     var element: AXUIElement?
     guard AXUIElementCopyElementAtPosition(AXUIElementCreateSystemWide(), Float(point.x), Float(point.y), &element) == .success,
           let element else { return nil }
@@ -10,7 +10,16 @@ private func closeButtonOwner(at point: CGPoint) -> pid_t? {
     guard AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subrole) == .success,
           let subrole = subrole as? String, subrole == kAXCloseButtonSubrole as String else { return nil }
     var pid: pid_t = 0
-    return AXUIElementGetPid(element, &pid) == .success ? pid : nil
+    guard AXUIElementGetPid(element, &pid) == .success else { return nil }
+    var position: CFTypeRef?, size: CFTypeRef?
+    var origin = CGPoint.zero, extent = CGSize.zero
+    if AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &position) == .success,
+       AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &size) == .success {
+        AXValueGetValue(position as! AXValue, .cgPoint, &origin)
+        AXValueGetValue(size as! AXValue, .cgSize, &extent)
+    }
+    // a little slack, and never smaller than the point clicked
+    return (pid, CGRect(origin: origin, size: extent).insetBy(dx: -2, dy: -2).union(CGRect(origin: point, size: .zero)))
 }
 
 /* A listen-only event tap on left clicks. When a click on a window's red close button completes,
@@ -18,7 +27,7 @@ private func closeButtonOwner(at point: CGPoint) -> pid_t? {
  Holding Option while clicking, or clicking in an app listed as an exception, only closes the window. */
 final class CloseQuitter {
     fileprivate var tap: EventTap!
-    private var pressedPid: pid_t?
+    private var pressed: (pid: pid_t, frame: CGRect)?
 
     // bundle identifiers of apps whose close button only closes the window
     var exceptions: Set<String> = []
@@ -34,14 +43,15 @@ final class CloseQuitter {
     }
 
     fileprivate func mouseDown(at point: CGPoint) {
-        pressedPid = closeButtonOwner(at: point)
+        pressed = closeButton(at: point)
     }
 
     fileprivate func mouseUp(at point: CGPoint) {
-        // the close button only acts if the mouse is released over it
-        guard let pid = pressedPid else { return }
-        pressedPid = nil
-        guard closeButtonOwner(at: point) == pid,
+        // The close button only acts if the mouse is released over it. By now the window may already be gone,
+        // so we check against where the button was when it was pressed rather than asking again.
+        guard let (pid, frame) = pressed else { return }
+        pressed = nil
+        guard frame.contains(point),
               let app = NSRunningApplication(processIdentifier: pid),
               app != NSRunningApplication.current, // our own windows just close
               app.bundleIdentifier != "com.apple.finder", // Finder relaunches itself
