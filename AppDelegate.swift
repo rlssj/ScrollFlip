@@ -46,6 +46,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return false
     }
 
+    /* The settings window leaves memory behind once closed (SwiftUI keeps caches around), so instead of
+     carrying on, a fresh copy starts in the background and this one quits: back to the bare minimum. */
+    private func relaunchInBackground() {
+        quitter.active = false
+        reverser.active = false
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = false
+        configuration.createsNewApplicationInstance = true
+        configuration.addsToRecentItems = false
+        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { [weak self] _, error in
+            DispatchQueue.main.async {
+                if error == nil {
+                    NSApp.terminate(nil)
+                } else {
+                    // couldn't start again: just carry on in the background
+                    self?.settingsWindowController = nil
+                    NSApp.setActivationPolicy(.accessory)
+                    self?.stateChanged()
+                }
+            }
+        }
+    }
+
     // There can be only one ScrollFlip
     private func terminateOthers() {
         for other in NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "") where other != .current {
@@ -61,7 +84,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         reverser.mouseHorizontal = model.mouseHorizontal
         quitter.exceptions = Set(model.quitExceptions)
         quitter.active = model.quitEnabled && permitted
-        reverser.active = model.scrollEnabled && permitted
+        // with nothing to change, there's no need to see any scrolling
+        let changesScrolling = model.trackpadDirection != .unchanged || model.mouseDirection != .unchanged
+        reverser.active = model.scrollEnabled && changesScrolling && permitted
         statusController.visible = model.showInMenuBar
         statusController.enabled = (model.quitEnabled || model.scrollEnabled) && permitted
         debug("permitted \(permitted), quit tap \(quitter.active), scroll tap \(reverser.active)")
@@ -122,12 +147,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         permissionsManager.refresh(for: 60)
         if settingsWindowController == nil {
             settingsWindowController = SettingsWindowController(model: model)
-            // the window is rebuilt each time it opens, so closed it takes no memory
             settingsWindowController?.onClose = { [weak self] in
-                DispatchQueue.main.async {
-                    self?.settingsWindowController = nil
-                    NSApp.setActivationPolicy(.accessory)
-                }
+                DispatchQueue.main.async { self?.relaunchInBackground() }
             }
         }
         settingsWindowController?.showWindow(self)

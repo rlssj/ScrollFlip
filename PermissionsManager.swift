@@ -10,14 +10,16 @@ final class PermissionsManager {
     }
 
     /* The system doesn't tell us when the permission changes, so we poll, but only while it matters:
-     until the permission is granted, and for a while after our settings are opened. */
-    func refresh(for seconds: TimeInterval = .infinity) {
+     until the permission is granted, and for a while after our settings are opened (in case it's taken away). */
+    func refresh(for seconds: TimeInterval = 0) {
         timer?.invalidate()
+        timer = nil
+        if accessibilityEnabled && seconds == 0 { return }
         let started = Date()
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] timer in
             guard let self else { return timer.invalidate() }
             self.checkState()
-            if self.accessibilityEnabled && Date().timeIntervalSince(started) > min(seconds, 60) {
+            if self.accessibilityEnabled && Date().timeIntervalSince(started) >= seconds {
                 timer.invalidate()
             }
         }
