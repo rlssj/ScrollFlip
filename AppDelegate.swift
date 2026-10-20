@@ -31,11 +31,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Opened by the user, show the settings; not at login nor when restarting ourselves in the background.
         // (macOS doesn't always make a freshly opened accessory app active, so we can't wait for that.)
-        if !permissionsManager.accessibilityEnabled || !(launchedInBackground || launchedAtLogin) {
+        if !(launchedInBackground || launchedAtLogin) {
             showSettings(nil)
+            askForPermissionIfMissing()
+        } else if !permissionsManager.accessibilityEnabled {
+            // right after an update macOS can take a moment to recognise the permission, so look again first
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+                guard let self, !AXIsProcessTrusted() else { return }
+                self.showSettings(nil)
+                self.askForPermissionIfMissing()
+            }
         }
-        // without permission, also show the system pop-up to grant it
-        if !permissionsManager.accessibilityEnabled {
+    }
+
+    // without permission, also show the system pop-up to grant it
+    private func askForPermissionIfMissing() {
+        if !AXIsProcessTrusted() {
             permissionsManager.requestAccessibilityPermission()
         }
     }
