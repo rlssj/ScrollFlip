@@ -140,7 +140,7 @@ struct SettingsView: View {
         } header: {
             Text("Cerrar apps")
         } footer: {
-            Text("Si la app tiene más ventanas abiertas, solo se cierra esa. Si hay algo sin guardar, te preguntará antes. El Finder nunca se cierra.")
+            Text("Si la app tiene más ventanas abiertas, solo se cierra esa. Con ⌥ pulsada se cierra solo esa ventana y la app sigue abierta. El Finder nunca se cierra.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }

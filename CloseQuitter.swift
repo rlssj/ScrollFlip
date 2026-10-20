@@ -68,18 +68,25 @@ private func closeButton(at point: CGPoint) -> (pid: pid_t, frame: CGRect)? {
 final class CloseQuitter {
     fileprivate var tap: EventTap!
     private var pressed: (pid: pid_t, frame: CGRect)?
+    // set while an Option click on a close button is having its Option taken away
+    fileprivate var strippingOption = false
 
     // bundle identifiers of apps whose close button only closes the window
     var exceptions: Set<String> = []
 
     init() {
-        tap = EventTap(events: [.leftMouseDown, .leftMouseUp], options: .listenOnly, callback: clickCallback, userInfo: self)
+        // not listen-only, so that an Option click on a close button can be changed (see clickCallback)
+        tap = EventTap(events: [.leftMouseDown, .leftMouseUp], options: .defaultTap, callback: clickCallback, userInfo: self)
     }
 
     // the tap is only installed while active
     var active: Bool {
         get { tap.installed }
         set { tap.installed = newValue }
+    }
+
+    fileprivate func optionMouseDown() {
+        pressed = nil
     }
 
     fileprivate func mouseDown(at point: CGPoint) {
@@ -123,17 +130,31 @@ final class CloseQuitter {
     }
 }
 
-// Accessibility queries are slow, so they run on the main queue, never in the tap callback.
-// The main queue is serial, so each mouse up is handled after its mouse down.
+/* Accessibility queries are slow, so they run on the main queue, never in the tap callback, which holds up
+ every click. The main queue is serial, so each mouse up is handled after its mouse down.
+
+ The one exception is an Option click: on a close button macOS closes all the app's windows, but we want it
+ to close just that one and leave the app running. So only then, the close button is looked up right away and
+ the click passed on without Option. */
 private let clickCallback: CGEventTapCallBack = { _, type, event, userInfo in
     let quitter = Unmanaged<CloseQuitter>.fromOpaque(userInfo!).takeUnretainedValue()
     let point = event.location
     switch type {
     case .tapDisabledByTimeout, .tapDisabledByUserInput:
         quitter.tap.reenable()
-    case .leftMouseDown where !optionHeld(event):
+    case .leftMouseDown where optionHeld(event):
+        quitter.strippingOption = closeButton(at: point) != nil
+        if quitter.strippingOption {
+            event.flags.remove(.maskAlternate)
+        }
+        DispatchQueue.main.async { quitter.optionMouseDown() } // never quits
+    case .leftMouseDown:
         DispatchQueue.main.async { quitter.mouseDown(at: point) }
     case .leftMouseUp:
+        if quitter.strippingOption {
+            event.flags.remove(.maskAlternate)
+            quitter.strippingOption = false
+        }
         DispatchQueue.main.async { quitter.mouseUp(at: point) }
     default:
         break

@@ -1,5 +1,6 @@
 // Run by the GitHub build with ScrollFlip already running. With TextEdit it checks that the red close button
-// only closes a window while others are open, quits the app on its last window, and with Option only closes it.
+// only closes a window while others are open, quits the app on its last window, and that with Option it closes
+// just that one window (not all of them, as macOS would) and never quits the app.
 import AppKit
 
 let textEdit = "com.apple.TextEdit"
@@ -32,7 +33,7 @@ func closeButtonCentre(of window: AXUIElement) -> CGPoint? {
     return CGPoint(x: origin.x + extent.width / 2, y: origin.y + extent.height / 2)
 }
 
-func openTextEdit(_ documents: [String] = [document]) -> NSRunningApplication {
+func openTextEdit(_ documents: [String] = [document], windows expected: Int? = nil) -> NSRunningApplication {
     let task = Process()
     task.executableURL = URL(fileURLWithPath: "/usr/bin/open")
     task.arguments = ["-b", textEdit] + documents
@@ -40,7 +41,7 @@ func openTextEdit(_ documents: [String] = [document]) -> NSRunningApplication {
     task.waitUntilExit()
     for _ in 0..<40 {
         wait(0.5)
-        if let app = running(), windows(of: app).count >= documents.count { wait(1); return app }
+        if let app = running(), windows(of: app).count >= (expected ?? documents.count) { wait(1); return app }
     }
     fail("TextEdit no abrió las ventanas")
 }
@@ -83,15 +84,24 @@ guard let afterFirst = running() else { fail("dos ventanas: TextEdit se ha cerra
 if windows(of: afterFirst).count != 1 { fail("dos ventanas: quedan \(windows(of: afterFirst).count) ventanas") }
 print("✅ dos ventanas: el botón rojo solo ha cerrado una")
 
-// 2. on the last window, the red button quits TextEdit
-app = afterFirst
+// 2. with two windows, Option + the red button closes just one, not both
+app = openTextEdit([secondDocument], windows: 2)
+guard let optionButton = closeButtonCentre(of: windows(of: app)[0]) else { fail("no encuentro el botón rojo de TextEdit") }
+click(optionButton, option: true)
+wait(3)
+guard let afterOption = running() else { fail("⌥ con dos ventanas: TextEdit se ha cerrado entero") }
+if windows(of: afterOption).count != 1 { fail("⌥ con dos ventanas: quedan \(windows(of: afterOption).count) ventanas") }
+print("✅ ⌥ con dos ventanas: solo se ha cerrado una")
+
+// 3. on the last window, the red button quits TextEdit
+app = afterOption
 guard let button = closeButtonCentre(of: windows(of: app)[0]) else { fail("no encuentro el botón rojo de TextEdit") }
 click(button, option: false)
 wait(3)
 if let still = running() { fail("botón rojo: TextEdit sigue abierto, con \(windows(of: still).count) ventanas") }
 print("✅ botón rojo: TextEdit se ha cerrado entero")
 
-// 3. with Option only the window closes
+// 4. with Option, the last window closes but TextEdit keeps running
 app = openTextEdit()
 guard let button2 = closeButtonCentre(of: windows(of: app)[0]) else { fail("no encuentro el botón rojo de TextEdit") }
 click(button2, option: true)
