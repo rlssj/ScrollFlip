@@ -92,7 +92,11 @@ final class CloseQuitter {
               app != NSRunningApplication.current, // our own windows just close
               app.bundleIdentifier != "com.apple.finder", // Finder relaunches itself
               !exceptions.contains(app.bundleIdentifier ?? "")
-        else { return }
+        else {
+            debug("not quitting pid \(pid)")
+            return
+        }
+        debug("quitting \(app.bundleIdentifier ?? "\(pid)")")
         app.terminate() // a normal quit, so the app can still ask to save changes
     }
 }
