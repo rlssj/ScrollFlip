@@ -1,5 +1,8 @@
 import AppKit
 
+// passed when we restart ourselves, so the new copy stays in the background
+private let backgroundArgument = "--background"
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let appName = "ScrollFlip"
 
@@ -26,11 +29,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(self, selector: #selector(stateChanged), name: .scrollFlipStateChanged, object: nil)
         stateChanged()
 
-        // without permission, open the settings and show the system pop-up to grant it
-        if !permissionsManager.accessibilityEnabled {
+        // Opened by the user, show the settings; not at login nor when restarting ourselves in the background.
+        // (macOS doesn't always make a freshly opened accessory app active, so we can't wait for that.)
+        if !permissionsManager.accessibilityEnabled || !(launchedInBackground || launchedAtLogin) {
             showSettings(nil)
+        }
+        // without permission, also show the system pop-up to grant it
+        if !permissionsManager.accessibilityEnabled {
             permissionsManager.requestAccessibilityPermission()
         }
+    }
+
+    private var launchedInBackground: Bool {
+        CommandLine.arguments.contains(backgroundArgument)
+    }
+
+    private var launchedAtLogin: Bool {
+        let event = NSAppleEventManager.shared().currentAppleEvent
+        return event?.eventID == AEEventID(kAEOpenApplication)
+            && event?.paramDescriptor(forKeyword: AEKeyword(keyAEPropData))?.enumCodeValue == OSType(keyAELaunchedAsLogInItem)
     }
 
     /* Opening the app from Finder or Spotlight shows the settings, which matters as there's no menu bar item.
@@ -55,6 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         configuration.activates = false
         configuration.createsNewApplicationInstance = true
         configuration.addsToRecentItems = false
+        configuration.arguments = [backgroundArgument]
         NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { [weak self] _, error in
             DispatchQueue.main.async {
                 if error == nil {
