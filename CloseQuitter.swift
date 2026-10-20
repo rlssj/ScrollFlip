@@ -44,15 +44,6 @@ private func isStandard(_ window: AXUIElement) -> Bool {
     attribute(window, kAXSubroleAttribute) as? String == kAXStandardWindowSubrole as String
 }
 
-private func isMinimized(_ window: AXUIElement) -> Bool {
-    attribute(window, kAXMinimizedAttribute) as? Bool ?? false
-}
-
-// The app's ordinary windows that are still showing; panels and palettes don't count.
-private func visibleStandardWindowCount(of pid: pid_t) -> Int {
-    let windows = attribute(application(pid), kAXWindowsAttribute) as? [AXUIElement] ?? []
-    return windows.filter { isStandard($0) && !isMinimized($0) }.count
-}
 
 /* The close button at this point (global, top-left origin): its app's pid, its frame, and how many other
  ordinary windows the app has (minimized ones included), or nil.
@@ -132,24 +123,10 @@ final class CloseQuitter {
             debug("\(otherWindows) other windows, not quitting \(app.bundleIdentifier ?? "\(pid)")")
             return
         }
-        quitOnceClosed(app, checksLeft: 40)
-    }
-
-    /* It was the last window, so quit as soon as it stops showing: closed, or hidden or minimized by apps such as
-     Discord that keep running in the background. It can take a moment (an animation), or not happen at all
-     (a question about unsaved changes or open tabs that is cancelled), so we keep looking for up to 10 seconds. */
-    private func quitOnceClosed(_ app: NSRunningApplication, checksLeft: Int) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            guard !app.isTerminated else { return }
-            if visibleStandardWindowCount(of: app.processIdentifier) == 0 {
-                debug("last window gone, quitting \(app.bundleIdentifier ?? "\(app.processIdentifier)")")
-                app.terminate() // a normal quit, so the app can still ask to save changes
-            } else if checksLeft > 1 {
-                self.quitOnceClosed(app, checksLeft: checksLeft - 1)
-            } else {
-                debug("the window is still there, not quitting \(app.bundleIdentifier ?? "\(app.processIdentifier)")")
-            }
-        }
+        // It was the last window, so quit straight away rather than wait for it to go: apps such as Discord only
+        // hide their window and stay in the background. A normal quit, so the app can still ask to save changes.
+        debug("last window, quitting \(app.bundleIdentifier ?? "\(pid)")")
+        app.terminate()
     }
 }
 
