@@ -3,25 +3,20 @@ import SwiftUI
 // the pink of the logo
 let brandPink = Color(red: 1.0, green: 0.30, blue: 0.56)
 
-/* Everything on one page, in two columns, with no scrolling: the window takes the size of its content. */
+/* Everything on one page, in one column, with no scrolling: the window takes the size of its content. */
 struct SettingsView: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 14) {
             if !model.permitted {
                 permissionBanner
             }
-            HStack(alignment: .top, spacing: 16) {
-                scrollCard
-                    .frame(width: columnWidth)
-                VStack(spacing: 16) {
-                    quitCard
-                    generalCard
-                }
-                .frame(width: columnWidth)
-            }
+            scrollCard
+            quitCard
+            generalCard
         }
+        .frame(width: columnWidth)
         .padding(.horizontal, 20)
         .padding(.top, 34) // room for the window buttons in the transparent title bar
         .padding(.bottom, 20)
@@ -30,7 +25,7 @@ struct SettingsView: View {
         .tint(brandPink)
     }
 
-    private let columnWidth: CGFloat = 340
+    private let columnWidth: CGFloat = 440
 
     // MARK: Permission
 
@@ -44,13 +39,11 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Button("Abrir Ajustes") { model.openAccessibilitySettings() }
             Button("Dar permiso") { model.requestPermission() }
                 .buttonStyle(.borderedProminent)
         }
         .padding(14)
         .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .frame(width: columnWidth * 2 + 16)
     }
 
     // MARK: Scrolling
@@ -206,17 +199,22 @@ struct DeviceRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label(name, systemImage: symbol)
-            Picker(name, selection: $direction) {
-                ForEach(ScrollDirection.allCases, id: \.self) { Text($0.title).tag($0) }
+            HStack {
+                Label(name, systemImage: symbol)
+                Spacer()
+                Picker(name, selection: $direction) {
+                    ForEach(ScrollDirection.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
             Toggle("Invertir también el horizontal", isOn: $horizontal)
                 .toggleStyle(.checkbox)
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .disabled(direction == .unchanged)
+                .padding(.leading, 28)
         }
     }
 }

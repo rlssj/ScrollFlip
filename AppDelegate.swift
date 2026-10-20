@@ -72,22 +72,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func relaunchInBackground() {
         quitter.active = false
         reverser.active = false
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.activates = false
-        configuration.createsNewApplicationInstance = true
-        configuration.addsToRecentItems = false
-        configuration.arguments = [backgroundArgument]
-        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { [weak self] _, error in
+        // Out of the Dock first: macOS keeps a quit app around while a copy it started is running, and as a
+        // regular app it would linger in the Dock as "running in the background".
+        NSApp.setActivationPolicy(.accessory)
+        // Started through `open` rather than NSWorkspace, so the new copy isn't tied to this one.
+        let open = Process()
+        open.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        open.arguments = ["-n", "-g", Bundle.main.bundlePath, "--args", backgroundArgument]
+        open.terminationHandler = { [weak self] process in
             DispatchQueue.main.async {
-                if error == nil {
+                if process.terminationStatus == 0 {
                     NSApp.terminate(nil)
                 } else {
                     // couldn't start again: just carry on in the background
                     self?.settingsWindowController = nil
-                    NSApp.setActivationPolicy(.accessory)
                     self?.stateChanged()
                 }
             }
+        }
+        do {
+            try open.run()
+        } catch {
+            settingsWindowController = nil
+            stateChanged()
         }
     }
 
