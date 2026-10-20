@@ -50,14 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             && event?.paramDescriptor(forKeyword: AEKeyword(keyAEPropData))?.enumCodeValue == OSType(keyAELaunchedAsLogInItem)
     }
 
-    /* Opening the app from Finder or Spotlight shows the settings, which matters as there's no menu bar item.
-     An accessory app isn't always sent the reopen event, but it is made active; at login it isn't. */
-    func applicationDidBecomeActive(_ notification: Notification) {
-        if !NSApp.windows.contains(where: \.isVisible) {
-            showSettings(nil)
-        }
-    }
-
+    // opening the app again from Finder or Spotlight shows the settings, which matters as there's no menu bar item
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         showSettings(nil)
         return false
