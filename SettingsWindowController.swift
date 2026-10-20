@@ -12,7 +12,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
         window.isReleasedWhenClosed = false
-        window.setContentSize(NSSize(width: 480, height: 660))
+        window.setContentSize(NSSize(width: 480, height: 730))
         super.init(window: window)
         window.delegate = self
     }

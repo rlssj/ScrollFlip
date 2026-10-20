@@ -22,14 +22,15 @@ struct SettingsView: View {
         }
         .background(.background)
         .tint(brandPink)
-        .frame(width: 480, height: 660)
+        .frame(width: 480, height: 730)
     }
 
     // MARK: Header
 
     private var header: some View {
         HStack(spacing: 14) {
-            Image(nsImage: NSApp.applicationIconImage)
+            // the Icon Composer icon, which follows light and dark mode
+            Image(nsImage: NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath))
                 .resizable()
                 .frame(width: 64, height: 64)
             VStack(alignment: .leading, spacing: 6) {
