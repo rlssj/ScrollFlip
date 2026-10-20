@@ -37,7 +37,7 @@ jobs:
         continue-on-error: true
         run: |
           # launched from this shell so it shares the runner's Accessibility permission
-          SCROLLFLIP_DEBUG=1 ScrollFlip.app/Contents/MacOS/ScrollFlip &
+          SCROLLFLIP_DEBUG=1 ScrollFlip.app/Contents/MacOS/ScrollFlip --background &
           sleep 5
           swiftc -O -o close-test Tests/CloseButtonTest.swift
           ./close-test

@@ -3,6 +3,8 @@
 // just that one window (not all of them, as macOS would) and never quits the app.
 import AppKit
 
+setvbuf(stdout, nil, _IOLBF, 0) // print each line straight away, even if the test then fails
+
 let textEdit = "com.apple.TextEdit"
 let document = NSTemporaryDirectory() + "scrollflip-test.txt"
 let secondDocument = NSTemporaryDirectory() + "scrollflip-test-2.txt"
@@ -21,12 +23,14 @@ func windows(of app: NSRunningApplication) -> [AXUIElement] {
     return value as? [AXUIElement] ?? []
 }
 
-func closeButtonCentre(of window: AXUIElement) -> CGPoint? {
+func closeButtonCentre(of window: AXUIElement?) -> CGPoint? {
     var button: CFTypeRef?, position: CFTypeRef?, size: CFTypeRef?
-    guard AXUIElementCopyAttributeValue(window, kAXCloseButtonAttribute as CFString, &button) == .success else { return nil }
+    guard let window, AXUIElementCopyAttributeValue(window, kAXCloseButtonAttribute as CFString, &button) == .success,
+          let button, CFGetTypeID(button) == AXUIElementGetTypeID() else { return nil }
     let element = button as! AXUIElement
-    AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &position)
-    AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &size)
+    guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &position) == .success,
+          AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &size) == .success,
+          let position, let size else { return nil }
     var origin = CGPoint.zero, extent = CGSize.zero
     AXValueGetValue(position as! AXValue, .cgPoint, &origin)
     AXValueGetValue(size as! AXValue, .cgSize, &extent)
@@ -77,7 +81,7 @@ print("Accesibilidad para la prueba: \(AXIsProcessTrusted())")
 
 // 1. with two windows, the red button only closes one
 var app = openTextEdit([document, secondDocument])
-guard let first = closeButtonCentre(of: windows(of: app)[0]) else { fail("no encuentro el botón rojo de TextEdit") }
+guard let first = closeButtonCentre(of: windows(of: app).first) else { fail("no encuentro el botón rojo de TextEdit") }
 click(first, option: false)
 wait(3)
 guard let afterFirst = running() else { fail("dos ventanas: TextEdit se ha cerrado entero") }
@@ -86,7 +90,7 @@ print("✅ dos ventanas: el botón rojo solo ha cerrado una")
 
 // 2. with two windows, Option + the red button closes just one, not both
 app = openTextEdit([secondDocument], windows: 2)
-guard let optionButton = closeButtonCentre(of: windows(of: app)[0]) else { fail("no encuentro el botón rojo de TextEdit") }
+guard let optionButton = closeButtonCentre(of: windows(of: app).first) else { fail("no encuentro el botón rojo de TextEdit") }
 click(optionButton, option: true)
 wait(3)
 guard let afterOption = running() else { fail("⌥ con dos ventanas: TextEdit se ha cerrado entero") }
@@ -95,7 +99,7 @@ print("✅ ⌥ con dos ventanas: solo se ha cerrado una")
 
 // 3. on the last window, the red button quits TextEdit
 app = afterOption
-guard let button = closeButtonCentre(of: windows(of: app)[0]) else { fail("no encuentro el botón rojo de TextEdit") }
+guard let button = closeButtonCentre(of: windows(of: app).first) else { fail("no encuentro el botón rojo de TextEdit") }
 click(button, option: false)
 wait(3)
 if let still = running() { fail("botón rojo: TextEdit sigue abierto, con \(windows(of: still).count) ventanas") }
@@ -103,7 +107,7 @@ print("✅ botón rojo: TextEdit se ha cerrado entero")
 
 // 4. with Option, the last window closes but TextEdit keeps running
 app = openTextEdit()
-guard let button2 = closeButtonCentre(of: windows(of: app)[0]) else { fail("no encuentro el botón rojo de TextEdit") }
+guard let button2 = closeButtonCentre(of: windows(of: app).first) else { fail("no encuentro el botón rojo de TextEdit") }
 click(button2, option: true)
 wait(3)
 guard let still = running() else { fail("⌥ + botón rojo: TextEdit se ha cerrado entero") }
