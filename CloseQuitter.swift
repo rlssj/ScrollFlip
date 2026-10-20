@@ -20,10 +20,16 @@ private func window(at point: CGPoint) -> (pid: pid_t, bounds: CGRect)? {
     for info in list {
         guard let bounds = (info[kCGWindowBounds as String] as! CFDictionary?).flatMap({ CGRect(dictionaryRepresentation: $0) }),
               bounds.contains(point) else { continue }
-        // the first window here, front to back, is the one clicked; only normal windows have a close button
-        guard info[kCGWindowLayer as String] as? Int == 0, let pid = info[kCGWindowOwnerPID as String] as? pid_t else { return nil }
+        // front to back, the first normal, visible window here is the one clicked; overlays above it
+        // (invisible or system ones, on other layers) don't take clicks on its buttons
+        guard info[kCGWindowLayer as String] as? Int == 0, (info[kCGWindowAlpha as String] as? Double ?? 1) > 0,
+              let pid = info[kCGWindowOwnerPID as String] as? pid_t else {
+            debug("skipping window of \(info[kCGWindowOwnerName as String] ?? "-") on layer \(info[kCGWindowLayer as String] ?? "-") at \(bounds)")
+            continue
+        }
         return (pid, bounds)
     }
+    debug("no window at \(point)")
     return nil
 }
 
@@ -32,8 +38,11 @@ private func window(at point: CGPoint) -> (pid: pid_t, bounds: CGRect)? {
  menu bar), so we find the window from the window list and ask its app where its close button is. */
 private func closeButton(at point: CGPoint) -> (pid: pid_t, frame: CGRect)? {
     // close buttons sit in a window's top left corner; skip every other click before asking the app anything
-    guard let (pid, bounds) = window(at: point),
-          point.x - bounds.minX < 160, point.y - bounds.minY < 90 else { return nil }
+    guard let (pid, bounds) = window(at: point) else { return nil }
+    guard point.x - bounds.minX < 160, point.y - bounds.minY < 90 else {
+        debug("at \(point): not in the top left corner of the window at \(bounds)")
+        return nil
+    }
     let windows = attribute(AXUIElementCreateApplication(pid), kAXWindowsAttribute) as? [AXUIElement] ?? []
     for window in windows {
         guard let button = attribute(window, kAXCloseButtonAttribute), let buttonFrame = frame(of: button as! AXUIElement) else { continue }
