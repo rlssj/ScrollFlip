@@ -23,7 +23,7 @@ struct SettingsView: View {
             }
         }
         .padding(.horizontal, 20)
-        .padding(.top, 38) // room for the window buttons in the transparent title bar
+        .padding(.top, 34) // room for the window buttons in the transparent title bar
         .padding(.bottom, 20)
         .fixedSize()
         .background(Color(nsColor: .windowBackgroundColor))
@@ -177,22 +177,24 @@ struct ToggleRow: View {
     var subtitle: String? = nil
     @Binding var isOn: Bool
 
+    // the switch always sits at the right edge, however short the title
     var body: some View {
-        Toggle(isOn: $isOn) {
-            HStack(spacing: 12) {
-                IconTile(symbol: symbol, color: color)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                    if let subtitle {
-                        Text(subtitle)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+        HStack(spacing: 12) {
+            IconTile(symbol: symbol, color: color)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            Spacer(minLength: 8)
+            Toggle(title, isOn: $isOn)
+                .toggleStyle(.switch)
+                .labelsHidden()
         }
-        .toggleStyle(.switch)
     }
 }
 
