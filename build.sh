@@ -12,6 +12,7 @@ xcrun actool ScrollFlip.icon --compile $app/Contents/Resources --platform macosx
   --minimum-deployment-target 13.0 --app-icon ScrollFlip \
   --output-partial-info-plist $tmp/icon.plist >/dev/null
 rm -rf $tmp
+cp Resources/* $app/Contents/Resources/
 swiftc -O -o $app/Contents/MacOS/ScrollFlip *.swift
 cat > $app/Contents/Info.plist <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

@@ -17,8 +17,10 @@ final class StatusItemController: NSObject {
             item.button?.target = self
             item.button?.action = #selector(statusButtonClicked(_:))
             item.button?.sendAction(on: [.leftMouseDown, .rightMouseDown])
-            // no logo yet: the menu bar item is just the name
-            item.button?.title = "ScrollFlip"
+            // the app's logo in colour, cut out of its background (StatusIcon.png and @2x in Resources)
+            let image = NSImage(named: "StatusIcon")
+            image?.accessibilityDescription = "ScrollFlip"
+            item.button?.image = image
             item.button?.appearsDisabled = !enabled
             statusItem = item
         } else if !visible, let item = statusItem {
