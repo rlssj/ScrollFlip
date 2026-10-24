@@ -45,6 +45,32 @@ private func isStandard(_ window: AXUIElement) -> Bool {
 }
 
 
+/* Apps that draw their own traffic lights, which Accessibility can't see (it doesn't even list GOG Galaxy's
+ windows): where the centre of the red button is, from the window's top-left corner, as measured on their
+ windows. They're found by the bundle identifier of the process that owns the window. */
+private let drawnCloseButtons: [String: CGPoint] = [
+    "com.valvesoftware.steam.helper": CGPoint(x: 20, y: 14), // Steam's window belongs to its helper process
+    "com.gog.galaxy": CGPoint(x: 31, y: 33),
+]
+
+// The app a window owner stands for, for exceptions and for quitting: Steam's helper stands for Steam.
+private let ownerApps = ["com.valvesoftware.steam.helper": "com.valvesoftware.steam"]
+
+// How to quit apps that don't quit when asked the usual way. Steam's own app isn't a regular app that can be
+// asked, but it quits itself, completely, through this link.
+private let quitLinks = ["com.valvesoftware.steam": URL(string: "steam://exit")!]
+
+// The other windows of this app on screen, from the window list (for apps whose windows Accessibility can't see).
+private func otherWindowsOnScreen(of pid: pid_t, besides bounds: CGRect) -> Int {
+    let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+    return list.filter { info in
+        guard info[kCGWindowOwnerPID as String] as? pid_t == pid, info[kCGWindowLayer as String] as? Int == 0,
+              let other = (info[kCGWindowBounds as String] as! CFDictionary?).flatMap({ CGRect(dictionaryRepresentation: $0) })
+        else { return false }
+        return other != bounds && other.width > 100 && other.height > 100
+    }.count
+}
+
 /* The close button at this point (global, top-left origin): its app's pid, its frame, and how many other
  ordinary windows the app has (minimized ones included), or nil.
  Asking Accessibility what is at a point doesn't reliably answer with the button (it can even answer with the
@@ -55,6 +81,11 @@ private func closeButton(at point: CGPoint) -> (pid: pid_t, frame: CGRect, other
     guard point.x - bounds.minX < 160, point.y - bounds.minY < 90 else {
         debug("at \(point): not in the top left corner of the window at \(bounds)")
         return nil
+    }
+    if let bundleID = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier, let centre = drawnCloseButtons[bundleID] {
+        let button = CGRect(x: bounds.minX + centre.x - 8, y: bounds.minY + centre.y - 8, width: 16, height: 16)
+        guard button.contains(point) else { return nil }
+        return (pid, button, otherWindowsOnScreen(of: pid, besides: bounds))
     }
     let windows = attribute(application(pid), kAXWindowsAttribute) as? [AXUIElement] ?? []
     for window in windows {
@@ -108,11 +139,11 @@ final class CloseQuitter {
         guard let (pid, frame, otherWindows) = pressed else { return }
         pressed = nil
         debug("mouse up at \(point), inside the button: \(frame.contains(point))")
-        guard frame.contains(point),
-              let app = NSRunningApplication(processIdentifier: pid),
-              app.bundleIdentifier != Bundle.main.bundleIdentifier, // our own windows just close
-              app.bundleIdentifier != "com.apple.finder", // Finder relaunches itself
-              !exceptions.contains(app.bundleIdentifier ?? "")
+        guard frame.contains(point), let owner = NSRunningApplication(processIdentifier: pid) else { return }
+        let bundleID = owner.bundleIdentifier.map { ownerApps[$0] ?? $0 } ?? ""
+        guard bundleID != Bundle.main.bundleIdentifier, // our own windows just close
+              bundleID != "com.apple.finder", // Finder relaunches itself
+              !exceptions.contains(bundleID)
         else {
             debug("not quitting pid \(pid)")
             return
@@ -120,13 +151,17 @@ final class CloseQuitter {
         // Only the last window quits the app: with others open (say a private and a normal Firefox window,
         // or one minimized), just that window closes.
         guard otherWindows == 0 else {
-            debug("\(otherWindows) other windows, not quitting \(app.bundleIdentifier ?? "\(pid)")")
+            debug("\(otherWindows) other windows, not quitting \(bundleID)")
             return
         }
         // It was the last window, so quit straight away rather than wait for it to go: apps such as Discord only
         // hide their window and stay in the background. A normal quit, so the app can still ask to save changes.
-        debug("last window, quitting \(app.bundleIdentifier ?? "\(pid)")")
-        app.terminate()
+        debug("last window, quitting \(bundleID)")
+        if let link = quitLinks[bundleID] {
+            NSWorkspace.shared.open(link)
+        } else {
+            owner.terminate()
+        }
     }
 }
 
