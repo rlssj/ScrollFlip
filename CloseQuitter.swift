@@ -56,9 +56,17 @@ private let drawnCloseButtons: [String: CGPoint] = [
 // The app a window owner stands for, for exceptions and for quitting: Steam's helper stands for Steam.
 private let ownerApps = ["com.valvesoftware.steam.helper": "com.valvesoftware.steam"]
 
-// How to quit apps that don't quit when asked the usual way. Steam's own app isn't a regular app that can be
-// asked, but it quits itself, completely, through this link.
-private let quitLinks = ["com.valvesoftware.steam": URL(string: "steam://exit")!]
+/* How to quit apps that ignore the usual request to quit. Steam's own app isn't a regular app that can be asked,
+ but it quits itself, completely, through its steam://exit link. GOG Galaxy ignores the request but quits
+ cleanly on the standard termination signal (the one macOS sends when shutting down). */
+private enum QuitMethod {
+    case link(URL)
+    case signal
+}
+private let quitMethods: [String: QuitMethod] = [
+    "com.valvesoftware.steam": .link(URL(string: "steam://exit")!),
+    "com.gog.galaxy": .signal,
+]
 
 // The other windows of this app on screen, from the window list (for apps whose windows Accessibility can't see).
 private func otherWindowsOnScreen(of pid: pid_t, besides bounds: CGRect) -> Int {
@@ -157,9 +165,12 @@ final class CloseQuitter {
         // It was the last window, so quit straight away rather than wait for it to go: apps such as Discord only
         // hide their window and stay in the background. A normal quit, so the app can still ask to save changes.
         debug("last window, quitting \(bundleID)")
-        if let link = quitLinks[bundleID] {
+        switch quitMethods[bundleID] {
+        case .link(let link)?:
             NSWorkspace.shared.open(link)
-        } else {
+        case .signal?:
+            kill(owner.processIdentifier, SIGTERM)
+        case nil:
             owner.terminate()
         }
     }
