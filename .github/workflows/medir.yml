@@ -1,0 +1,61 @@
+# Compila Vorssaint tal cual y mide cuánto gasta en reposo (memoria real y procesador),
+# junto a ScrollFlip (rama main) para comparar. No publica nada.
+name: Medir
+
+on:
+  push:
+    branches: [vorssaint]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  medir:
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: scrollflip
+
+      - name: Compilar Vorssaint
+        run: ./build.sh
+
+      - name: Compilar ScrollFlip
+        run: ./scrollflip/build.sh
+
+      - name: Medir
+        run: |
+          # sums memory (phys_footprint) and CPU time over every process of an app, children included
+          measure() {
+            local name=$1 path=$2
+            local pids=$(pgrep -f "$path" | tr '\n' ' ')
+            local mem=0 cpu=0
+            for pid in $pids; do
+              kb=$(footprint $pid 2>/dev/null | awk '/phys_footprint:/ {v=$2; u=$3; if (u=="MB") v*=1024; print int(v); exit}')
+              mem=$((mem + ${kb:-0}))
+            done
+            cpu=$(ps -o time= -p ${pids// /,} 2>/dev/null | awk -F'[:.]' '{s += $1*60 + $2 + $3/100} END {printf "%.2f", s}')
+            echo "$name: $(echo $pids | wc -w | tr -d ' ') procesos, memoria $((mem/1024)) MB, CPU acumulada ${cpu} s"
+          }
+          VAPP=$(ls -d build/*.app | head -1)
+          echo "Vorssaint: $VAPP"; ls "$VAPP/Contents/MacOS"
+          "$VAPP/Contents/MacOS/$(ls "$VAPP/Contents/MacOS" | head -1)" > vorssaint.log 2>&1 &
+          scrollflip/ScrollFlip.app/Contents/MacOS/ScrollFlip --background > scrollflip.log 2>&1 &
+          sleep 30
+          echo "== a los 30 s"
+          measure Vorssaint "$VAPP"
+          measure ScrollFlip scrollflip/ScrollFlip.app
+          sleep 60
+          echo "== a los 90 s (60 s más en reposo)"
+          measure Vorssaint "$VAPP"
+          measure ScrollFlip scrollflip/ScrollFlip.app
+          echo "== tamaño en disco"
+          du -sh "$VAPP" scrollflip/ScrollFlip.app
+          echo "== procesos de Vorssaint"
+          ps -o pid,rss,time,args -p $(pgrep -f "$VAPP" | tr '\n' ',' | sed 's/,$//') | cut -c1-160
+          echo "== log de Vorssaint"; tail -20 vorssaint.log
