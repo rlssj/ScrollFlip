@@ -43,7 +43,7 @@ jobs:
             cpu=$(ps -o time= -p ${pids// /,} 2>/dev/null | awk -F'[:.]' '{s += $1*60 + $2 + $3/100} END {printf "%.2f", s}')
             echo "$name: $(echo $pids | wc -w | tr -d ' ') procesos, memoria $((mem/1024)) MB, CPU acumulada ${cpu} s"
           }
-          VAPP=$(ls -d build/*.app | head -1)
+          VAPP=build/stage/Vorssaint.app
           echo "Vorssaint: $VAPP"; ls "$VAPP/Contents/MacOS"
           "$VAPP/Contents/MacOS/$(ls "$VAPP/Contents/MacOS" | head -1)" > vorssaint.log 2>&1 &
           scrollflip/ScrollFlip.app/Contents/MacOS/ScrollFlip --background > scrollflip.log 2>&1 &
