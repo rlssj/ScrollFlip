@@ -1,6 +1,6 @@
-# Compila Vorssaint tal cual y mide cuánto gasta en reposo (memoria real y procesador),
-# junto a ScrollFlip (rama main) para comparar. No publica nada.
-name: Medir
+# Compila Vorssaint desde este código para usarlo en el Mac de rlssj (artefacto "Vorssaint"),
+# y mide cuánto gasta en reposo (memoria real y procesador) junto a ScrollFlip para comparar.
+name: Compilar Vorssaint
 
 on:
   push:
@@ -18,7 +18,18 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Compilar Vorssaint
-        run: ./build.sh
+        run: |
+          ./build.sh
+          # Ad-hoc signatures are identified by their hash, which changes with every build and makes macOS forget
+          # Accessibility and other permissions. Requiring only the bundle identifier keeps them across builds.
+          codesign --force -s - -r='designated => identifier "com.vorssaint.utils"' build/stage/Vorssaint.app
+          codesign -dr - build/stage/Vorssaint.app
+          ditto -c -k --keepParent build/stage/Vorssaint.app Vorssaint.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Vorssaint
+          path: Vorssaint.zip
 
       - name: Descargar ScrollFlip publicada
         env:
